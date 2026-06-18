@@ -1,0 +1,202 @@
+[
+  {
+    "query": "How many sick leave days do employees get?",
+    "expected_answer_contains": ["8 days", "calendar year"],
+    "relevant_chunk_keywords": ["Sick Leave", "8 days", "non-cumulative"]
+  },
+  {
+    "query": "What is the maternity leave entitlement?",
+    "expected_answer_contains": ["26 weeks", "80 days"],
+    "relevant_chunk_keywords": ["Maternity Leave", "26 weeks"]
+  },
+  {
+    "query": "How many casual leave days are credited per quarter?",
+    "expected_answer_contains": ["2", "quarter"],
+    "relevant_chunk_keywords": ["Casual Leave", "quarter", "2 CLs"]
+  },
+  {
+    "query": "What is paternity leave duration?",
+    "expected_answer_contains": ["7 days"],
+    "relevant_chunk_keywords": ["Paternity Leave", "7 days"]
+  },
+  {
+    "query": "How many bereavement leave days are allowed?",
+    "expected_answer_contains": ["5 days"],
+    "relevant_chunk_keywords": ["Bereavement Leave", "5 days", "demise"]
+  },
+  {
+    "query": "What happens if an employee takes more than 3 days of unapproved leave?",
+    "expected_answer_contains": ["disciplinary", "3 business days"],
+    "relevant_chunk_keywords": ["unauthorized", "3 business days", "disciplinary"]
+  },
+  {
+    "query": "What is miscarriage leave entitlement?",
+    "expected_answer_contains": ["6 weeks"],
+    "relevant_chunk_keywords": ["Miscarriage Leave", "6 weeks"]
+  },
+  {
+    "query": "How many flexible holidays can an employee take?",
+    "expected_answer_contains": ["2 days"],
+    "relevant_chunk_keywords": ["Flexible", "2 days"]
+  },
+  {
+    "query": "How many SL days do I get?",
+    "expected_answer_contains": ["8 days"],
+    "relevant_chunk_keywords": ["Sick Leave", "8 days"]
+  },
+  {
+    "query": "What is CL entitlement per year?",
+    "expected_answer_contains": ["8"],
+    "relevant_chunk_keywords": ["Casual Leave", "8 working days"]
+  },
+  {
+    "query": "What is ML duration?",
+    "expected_answer_contains": ["26 weeks"],
+    "relevant_chunk_keywords": ["Maternity Leave", "26 weeks"]
+  },
+  {
+    "query": "How many total leave days (SL plus CL) per year?",
+    "expected_answer_contains": ["8", "8"],
+    "relevant_chunk_keywords": ["Sick Leave", "Casual Leave", "8 days"]
+  },
+  {
+    "query": "What leave cannot be accumulated or encashed?",
+    "expected_answer_contains": ["accumulated", "encashed"],
+    "relevant_chunk_keywords": ["cannot be accumulated", "encashed"]
+  },
+  {
+    "query": "Which leaves have no payment at year end?",
+    "expected_answer_contains": ["no payment"],
+    "relevant_chunk_keywords": ["no payment", "year end"]
+  },
+  {
+    "query": "What happens when sick leave runs out?",
+    "expected_answer_contains": ["Casual Leave", "reclassified"],
+    "relevant_chunk_keywords": ["reclassified", "Casual Leave", "unpaid"]
+  },
+  {
+    "query": "Can casual leave be taken as half day?",
+    "expected_answer_contains": ["half-day"],
+    "relevant_chunk_keywords": ["half-day", "minimum duration"]
+  },
+  {
+    "query": "Are trainees covered by the leave policy?",
+    "expected_answer_contains": ["trainees"],
+    "relevant_chunk_keywords": ["trainees", "contract consultants", "not applicable"]
+  },
+  {
+    "query": "When does the leave policy apply to new joiners?",
+    "expected_answer_contains": ["date of joining"],
+    "relevant_chunk_keywords": ["date of joining", "New joiners"]
+  },
+  {
+    "query": "How to apply for planned leave?",
+    "expected_answer_contains": ["Reporting Manager", "HR"],
+    "relevant_chunk_keywords": ["Reporting Manager", "HR", "advance"]
+  },
+  {
+    "query": "What should an employee do if sick in the morning and cannot apply for leave?",
+    "expected_answer_contains": ["Reporting Manager", "HR", "same day"],
+    "relevant_chunk_keywords": ["inform", "Reporting Manager", "same day"]
+  },
+  {
+    "query": "How long in advance should planned leave be requested?",
+    "expected_answer_contains": ["well in advance"],
+    "relevant_chunk_keywords": ["well in advance", "as soon as"]
+  },
+  {
+    "query": "What documents are needed for maternity leave?",
+    "expected_answer_contains": ["hospital", "discharge"],
+    "relevant_chunk_keywords": ["Discharge card", "hospital", "delivery"]
+  },
+  {
+    "query": "How many days does an employee need to work to be eligible for maternity leave?",
+    "expected_answer_contains": ["80 days"],
+    "relevant_chunk_keywords": ["80 days", "minimum", "employed"]
+  },
+  {
+    "query": "What is the minimum employment period for miscarriage leave?",
+    "expected_answer_contains": ["80 days"],
+    "relevant_chunk_keywords": ["80 days", "miscarriage"]
+  },
+  {
+    "query": "Who are considered immediate family members for bereavement leave?",
+    "expected_answer_contains": ["parents", "spouse", "children"],
+    "relevant_chunk_keywords": ["parents", "in-laws", "spouse", "children"]
+  },
+  {
+    "query": "Do bereavement leave days count against the leave balance?",
+    "expected_answer_contains": ["not be debited", "leave account"],
+    "relevant_chunk_keywords": ["not be debited", "leave account"]
+  },
+  {
+    "query": "What is the purpose of casual leave?",
+    "expected_answer_contains": ["personal reason"],
+    "relevant_chunk_keywords": ["personal reason", "Casual Leave"]
+  },
+  {
+    "query": "Can unused casual leave be carried forward to next year?",
+    "expected_answer_contains": ["non-cumulative", "lapse"],
+    "relevant_chunk_keywords": ["non-cumulative", "lapse", "calendar year"]
+  },
+  {
+    "query": "What is flexible holiday leave?",
+    "expected_answer_contains": ["2 days", "personal obligations"],
+    "relevant_chunk_keywords": ["Flexible", "2 days", "prior approval"]
+  },
+  {
+    "query": "Does flexible holiday require approval?",
+    "expected_answer_contains": ["approval", "prior"],
+    "relevant_chunk_keywords": ["prior approval", "Reporting Manager", "HR"]
+  },
+  {
+    "query": "What is the leave policy scope?",
+    "expected_answer_contains": ["full-time employees"],
+    "relevant_chunk_keywords": ["full-time employees", "Genboot Private Limited"]
+  },
+  {
+    "query": "How is sick leave reclassified when exhausted?",
+    "expected_answer_contains": ["Casual Leave", "unpaid"],
+    "relevant_chunk_keywords": ["reclassified", "Casual Leave", "unpaid leave"]
+  },
+  {
+    "query": "What happens to unused SL at year end?",
+    "expected_answer_contains": ["lapse", "no payment"],
+    "relevant_chunk_keywords": ["lapse", "non-cumulative", "calendar year"]
+  },
+  {
+    "query": "How many CL days are available per quarter?",
+    "expected_answer_contains": ["2"],
+    "relevant_chunk_keywords": ["2 CLs per quarter", "quarterly"]
+  },
+  {
+    "query": "What factors are considered when approving leave?",
+    "expected_answer_contains": ["purpose", "project"],
+    "relevant_chunk_keywords": ["Purpose of leave", "project dependencies", "Time duration"]
+  },
+  {
+    "query": "What is the purpose of the leave policy document?",
+    "expected_answer_contains": ["communicate", "eligibility"],
+    "relevant_chunk_keywords": ["communicate", "eligibility", "process"]
+  },
+  {
+    "query": "Who are the stakeholders of the leave policy?",
+    "expected_answer_contains": ["HR", "Reporting Manager"],
+    "relevant_chunk_keywords": ["Stakeholders", "HR", "Reporting Manager", "Employees"]
+  },
+  {
+    "query": "What is PL entitlement?",
+    "expected_answer_contains": ["7 days"],
+    "relevant_chunk_keywords": ["Paternity Leave", "7 days"]
+  },
+  {
+    "query": "How many weeks of leave after a miscarriage?",
+    "expected_answer_contains": ["6 weeks"],
+    "relevant_chunk_keywords": ["6 weeks", "miscarriage", "medical termination"]
+  },
+  {
+    "query": "What happens if leave is not approved and extends beyond 3 days?",
+    "expected_answer_contains": ["unauthorized absence", "disciplinary"],
+    "relevant_chunk_keywords": ["unauthorized absence", "3 business days", "disciplinary action"]
+  }
+]

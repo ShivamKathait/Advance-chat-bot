@@ -1,0 +1,61 @@
+# Web framework
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic-settings==2.7.0
+python-multipart==0.0.32
+
+# Database
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+
+# Cache / task queue
+redis==5.2.1
+arq>=0.25.0
+
+# Object storage (MinIO/S3)
+boto3==1.35.90
+
+# Document parsing
+pypdf==6.13.2
+PyMuPDF>=1.23.0
+python-docx>=1.1.0
+charset-normalizer>=3.0.0
+openpyxl>=3.1.0
+pdf2image>=1.17.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Auth / crypto
+# NOTE: passlib==1.7.4's bcrypt backend probe is broken on bcrypt>=4.1
+# (removed `__about__`, stricter 72-byte check). Pin 4.0.x until passlib
+# is upgraded/replaced.
+bcrypt==4.0.1
+cffi==2.0.0
+cryptography==48.0.1
+ecdsa==0.19.2
+passlib==1.7.4
+pyasn1==0.6.3
+pycparser==3.0
+python-jose==3.5.0
+rsa==4.9.1
+six==1.17.0
+typing_extensions==4.15.0
+
+# Vector database
+qdrant-client==1.18.0
+
+# Embeddings
+google-genai>=0.8.0
+tiktoken>=0.7.0
+
+# Reliability
+tenacity>=8.2.0
+
+# Reranking
+cohere>=5.0.0
+
+# Metrics
+prometheus-client>=0.20.0
+
+# Sparse / hybrid retrieval
+rank-bm25>=0.2.2
