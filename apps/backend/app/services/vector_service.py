@@ -312,12 +312,13 @@ class VectorStoreService:
     @staticmethod
     def _deduplicate_chunks(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Remove redundant chunks caused by chunking overlap.
+        Remove exact-duplicate chunks (same document + chunk index appearing twice,
+        e.g. once from dense search and once from BM25).
 
-        Skips a chunk if an adjacent chunk index (±1) from the same document is
-        already kept — those chunks share ~200 chars of overlap and carry duplicate
-        information. No cap on chunks-per-document: that would silently starve the
-        reranker/LLM of candidates for small or single-document corpora.
+        Does NOT drop merely-adjacent chunks: with CHUNK_SIZE=1000/CHUNK_OVERLAP=200,
+        neighboring chunks share only ~20% overlap text — each still carries ~80%
+        unique content, so discarding a whole neighbor on proximity alone throws away
+        real information and was causing genuine retrieval misses.
         """
         results = sorted(results, key=lambda r: r["score"], reverse=True)
         kept: List[Dict[str, Any]] = []
@@ -328,7 +329,7 @@ class VectorStoreService:
             chunk_idx = r["metadata"].get("chunk_index", -1)
             doc_seen = seen.setdefault(doc_id, set())
 
-            if any(abs(chunk_idx - k) <= 1 for k in doc_seen):
+            if chunk_idx in doc_seen:
                 continue
 
             doc_seen.add(chunk_idx)
@@ -461,6 +462,103 @@ class VectorStoreService:
             "avg_chunks_returned": avg("num_chunks"),
         }
 
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        rewrite: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Retrieval-only portion of the RAG pipeline — no LLM generation.
+
+        Steps:
+        1. Query rewriting (optional)
+        2. Dense retrieval
+        3. BM25 sparse retrieval + Reciprocal Rank Fusion
+        4. Deduplicate overlapping chunks
+        5. Cross-encoder reranking
+
+        Returns:
+            Dictionary with sources, num_sources, context, and per-stage timings
+        """
+        timings: Dict[str, Any] = {}
+        desired_k = top_k or settings.TOP_K_RETRIEVAL
+        # Fetch more candidates when reranker is active so it has room to reorder
+        fetch_k = settings.MAX_RERANK_CANDIDATES if self.reranker else desired_k
+
+        # 1. Query rewriting — expand abbreviations and decompose multi-part questions
+        if rewrite and settings.QUERY_REWRITE_ENABLED:
+            t0 = time.perf_counter()
+            rewritten_queries = await self.llm_service.rewrite_query(query, conversation_history)
+            timings["rewrite_ms"] = round((time.perf_counter() - t0) * 1000)
+            logger_adapter.info("Query rewritten", rewrites=rewritten_queries)
+        else:
+            rewritten_queries = [query]
+
+        # 2. Dense retrieval — embed each rewritten query, merge unique results
+        t0 = time.perf_counter()
+        seen_chunk_keys: set = set()
+        dense_results: List[Dict[str, Any]] = []
+        for q in rewritten_queries:
+            q_embedding = await self.embedding_generator.generate_embedding(q)
+            results = await self.search_similar(
+                query_embedding=q_embedding,
+                top_k=fetch_k,
+                score_threshold=settings.SIMILARITY_THRESHOLD,
+            )
+            for r in results:
+                key = r["metadata"].get("document_id", "") + str(r["metadata"].get("chunk_index", ""))
+                if key not in seen_chunk_keys:
+                    seen_chunk_keys.add(key)
+                    dense_results.append(r)
+        timings["embed_retrieve_ms"] = round((time.perf_counter() - t0) * 1000)
+
+        # 3. BM25 sparse retrieval + Reciprocal Rank Fusion
+        raw_results = dense_results
+        if settings.BM25_ENABLED:
+            t0 = time.perf_counter()
+            bm25_results = await self._bm25_search(query, top_k=fetch_k)
+            if bm25_results:
+                raw_results = self._reciprocal_rank_fusion(dense_results, bm25_results)
+            timings["bm25_ms"] = round((time.perf_counter() - t0) * 1000)
+
+        # 4. Remove overlapping chunks (caused by 200-char ingestion overlap)
+        raw_results = self._deduplicate_chunks(raw_results)
+
+        # 5. Cross-encoder reranking — reorder by true query-chunk relevance
+        if self.reranker and raw_results:
+            t0 = time.perf_counter()
+            try:
+                raw_results = await self.reranker.rerank(
+                    query=query,
+                    chunks=raw_results,
+                    top_n=desired_k,
+                )
+                timings["rerank_ms"] = round((time.perf_counter() - t0) * 1000)
+            except Exception as rerank_err:
+                logger_adapter.warning(f"Reranker failed, using dense order: {rerank_err}")
+                raw_results = raw_results[:desired_k]
+        else:
+            raw_results = raw_results[:desired_k]
+
+        context = "\n\n".join(r["text"] for r in raw_results)
+        sources = [
+            {
+                "content": r["text"],
+                "score": r.get("rerank_score", r["score"]),
+                "metadata": r["metadata"],
+            }
+            for r in raw_results
+        ]
+
+        return {
+            "sources": sources,
+            "num_sources": len(raw_results),
+            "context": context,
+            "timings": timings,
+        }
+
     async def process_query(
         self,
         query: str,
@@ -471,96 +569,31 @@ class VectorStoreService:
     ) -> Dict[str, Any]:
         """
         Process user query through full RAG pipeline
-        
+
         Steps:
         1. Generate embedding for query
         2. Retrieve relevant documents
         3. Format context
         4. Generate response with LLM
         5. Save to conversation history
-        
+
         Args:
             query: User query
             conversation_id: Conversation ID (new if not provided)
             top_k: Number of documents to retrieve
             use_context: Whether to use retrieved context
-            
+
         Returns:
             Dictionary with response, sources, and metadata
         """
         try:
-            timings: Dict[str, Any] = {}
-            desired_k = top_k or settings.TOP_K_RETRIEVAL
-            # Fetch more candidates when reranker is active so it has room to reorder
-            fetch_k = settings.MAX_RERANK_CANDIDATES if self.reranker else desired_k
-
             logger_adapter.info("Processing query", query=query[:100], conversation_id=conversation_id)
 
-            # 1. Query rewriting — expand abbreviations and decompose multi-part questions
-            if settings.QUERY_REWRITE_ENABLED:
-                t0 = time.perf_counter()
-                rewritten_queries = await self.llm_service.rewrite_query(query, conversation_history)
-                timings["rewrite_ms"] = round((time.perf_counter() - t0) * 1000)
-                logger_adapter.info("Query rewritten", rewrites=rewritten_queries)
-            else:
-                rewritten_queries = [query]
-
-            # 2. Dense retrieval — embed each rewritten query, merge unique results
-            t0 = time.perf_counter()
-            seen_chunk_keys: set = set()
-            dense_results: List[Dict[str, Any]] = []
-            for q in rewritten_queries:
-                q_embedding = await self.embedding_generator.generate_embedding(q)
-                results = await self.search_similar(
-                    query_embedding=q_embedding,
-                    top_k=fetch_k,
-                    score_threshold=settings.SIMILARITY_THRESHOLD,
-                )
-                for r in results:
-                    key = r["metadata"].get("document_id", "") + str(r["metadata"].get("chunk_index", ""))
-                    if key not in seen_chunk_keys:
-                        seen_chunk_keys.add(key)
-                        dense_results.append(r)
-            timings["embed_retrieve_ms"] = round((time.perf_counter() - t0) * 1000)
-
-            # 3. BM25 sparse retrieval + Reciprocal Rank Fusion
-            raw_results = dense_results
-            if settings.BM25_ENABLED:
-                t0 = time.perf_counter()
-                bm25_results = await self._bm25_search(query, top_k=fetch_k)
-                if bm25_results:
-                    raw_results = self._reciprocal_rank_fusion(dense_results, bm25_results)
-                timings["bm25_ms"] = round((time.perf_counter() - t0) * 1000)
-
-            # 4. Remove overlapping chunks (caused by 200-char ingestion overlap)
-            raw_results = self._deduplicate_chunks(raw_results)
-
-            # 5. Cross-encoder reranking — reorder by true query-chunk relevance
-            if self.reranker and raw_results:
-                t0 = time.perf_counter()
-                try:
-                    raw_results = await self.reranker.rerank(
-                        query=query,
-                        chunks=raw_results,
-                        top_n=desired_k,
-                    )
-                    timings["rerank_ms"] = round((time.perf_counter() - t0) * 1000)
-                except Exception as rerank_err:
-                    logger_adapter.warning(f"Reranker failed, using dense order: {rerank_err}")
-                    raw_results = raw_results[:desired_k]
-            else:
-                raw_results = raw_results[:desired_k]
-
-            context = "\n\n".join(r["text"] for r in raw_results)
-            sources = [
-                {
-                    "content": r["text"],
-                    "score": r.get("rerank_score", r["score"]),
-                    "metadata": r["metadata"],
-                }
-                for r in raw_results
-            ]
-            num_docs = len(raw_results)
+            retrieval = await self.retrieve(query, top_k=top_k, conversation_history=conversation_history)
+            timings = retrieval["timings"]
+            sources = retrieval["sources"]
+            num_docs = retrieval["num_sources"]
+            context = retrieval["context"]
 
             # 6. LLM response generation
             t0 = time.perf_counter()

@@ -7,15 +7,15 @@ class Source(BaseModel):
     content: str = Field(..., description="Document snippet")
     score: float = Field(..., description="Similarity score")
     metadata: dict = Field(default_factory=dict, description="Document metadata")
- 
- 
+
+
 class ChatRequest(BaseModel):
     """Chat query request"""
     message: str = Field(..., description="User message", min_length=1, max_length=500)
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
     top_k: Optional[int] = Field(5, description="Number of documents to retrieve", ge=1, le=20)
- 
- 
+
+
 class ChatResponse(BaseModel):
     """Chat response with sources"""
     response: str = Field(..., description="AI response")

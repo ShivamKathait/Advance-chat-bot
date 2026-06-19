@@ -171,15 +171,65 @@ async def run_eval(base_url: str, top_k: int = 5, use_llm_judge: bool = True) ->
     print(f"Full results saved to {output_path}")
 
 
+async def run_retrieval_eval(top_k: int = 5) -> None:
+    """Retrieval-only eval — no Gemini generate_content calls (no query rewrite, no answer generation)."""
+    golden = _load_golden_set()
+    from app.services.vector_service import vector_store
+
+    retrieval_hits = 0
+    results = []
+
+    print(f"\nRunning retrieval-only eval on {len(golden)} cases (top_k={top_k}, no LLM calls)\n")
+
+    for case in golden:
+        result = await vector_store.retrieve(case["query"], top_k=top_k, rewrite=False)
+        sources_text = " ".join(s["content"] for s in result["sources"])
+
+        retrieval_hit = all(
+            kw.lower() in sources_text.lower()
+            for kw in case["relevant_chunk_keywords"]
+        )
+        if retrieval_hit:
+            retrieval_hits += 1
+
+        icon = "✓" if retrieval_hit else "✗"
+        print(f"  [{icon}] {case['query'][:65]}")
+        if not retrieval_hit:
+            print(f"       ↳ Missing in sources: {case['relevant_chunk_keywords']}")
+
+        results.append({
+            "query": case["query"],
+            "retrieval_hit": retrieval_hit,
+            "num_sources": result["num_sources"],
+        })
+
+    total = len(golden)
+    print(f"\n{'='*65}")
+    print(f"Retrieval-only Recall@{top_k} : {retrieval_hits}/{total} = {retrieval_hits/total:.0%}")
+    print(f"{'='*65}\n")
+
+    output_path = Path(__file__).parent / "retrieval_eval_results.json"
+    with open(output_path, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Full results saved to {output_path}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run RAG eval suite")
     parser.add_argument("--base-url", default="http://localhost:8003")
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--no-llm-judge", action="store_true", help="Skip LLM-as-judge scoring")
+    parser.add_argument(
+        "--retrieval-only", action="store_true",
+        help="Retrieval-only mode: no LLM calls at all (skips query rewrite + answer generation + judge)",
+    )
     args = parser.parse_args()
 
-    asyncio.run(run_eval(
-        base_url=args.base_url,
-        top_k=args.top_k,
-        use_llm_judge=not args.no_llm_judge,
-    ))
+    if args.retrieval_only:
+        asyncio.run(run_retrieval_eval(top_k=args.top_k))
+    else:
+        asyncio.run(run_eval(
+            base_url=args.base_url,
+            top_k=args.top_k,
+            use_llm_judge=not args.no_llm_judge,
+        ))

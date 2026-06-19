@@ -1,0 +1,202 @@
+[
+  {
+    "query": "How many sick leave days do employees get?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is the maternity leave entitlement?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "How many casual leave days are credited per quarter?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is paternity leave duration?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How many bereavement leave days are allowed?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What happens if an employee takes more than 3 days of unapproved leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is miscarriage leave entitlement?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How many flexible holidays can an employee take?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How many SL days do I get?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is CL entitlement per year?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "What is ML duration?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "How many total leave days (SL plus CL) per year?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What leave cannot be accumulated or encashed?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Which leaves have no payment at year end?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What happens when sick leave runs out?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Can casual leave be taken as half day?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Are trainees covered by the leave policy?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "When does the leave policy apply to new joiners?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How to apply for planned leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What should an employee do if sick in the morning and cannot apply for leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How long in advance should planned leave be requested?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What documents are needed for maternity leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How many days does an employee need to work to be eligible for maternity leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is the minimum employment period for miscarriage leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Who are considered immediate family members for bereavement leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Do bereavement leave days count against the leave balance?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is the purpose of casual leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Can unused casual leave be carried forward to next year?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is flexible holiday leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Does flexible holiday require approval?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is the leave policy scope?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How is sick leave reclassified when exhausted?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What happens to unused SL at year end?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "How many CL days are available per quarter?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "What factors are considered when approving leave?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is the purpose of the leave policy document?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "Who are the stakeholders of the leave policy?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What is PL entitlement?",
+    "retrieval_hit": false,
+    "num_sources": 5
+  },
+  {
+    "query": "How many weeks of leave after a miscarriage?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  },
+  {
+    "query": "What happens if leave is not approved and extends beyond 3 days?",
+    "retrieval_hit": true,
+    "num_sources": 5
+  }
+]

@@ -39,7 +39,7 @@ _HARMFUL_PATTERNS = [
 # ---------------------------------------------------------------------------
 _OUTPUT_COMPROMISE_PATTERNS = [
     r"i('m|\s+am)\s+now\s+(free(d)?|unlocked|unrestricted|without\s+(restrictions?|filters?))",
-    r"(as\s+)?(dan|dude|evil\s+bot|unrestricted\s+ai|jailbroken\s+(ai|model))",
+    r"\b(as\s+)?(dan|dude|evil\s+bot|unrestricted\s+ai|jailbroken\s+(ai|model))\b",
     r"i\s+(no\s+longer|don't|do\s+not)\s+(have|follow|obey)\s+(any\s+)?(restrictions?|guidelines?|rules?|filters?)",
     r"my\s+(true|real|actual)\s+(self|purpose|goal|instructions?)\s+is",
     r"ignore\s+(all\s+)?previous\s+instructions",   # echo of injection in output

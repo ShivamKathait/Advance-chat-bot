@@ -1,0 +1,187 @@
+[
+  {
+    "query": "How many sick leave days do employees get?",
+    "retrieval_hit": true,
+    "answer_hit": false,
+    "num_sources": 5,
+    "faithfulness": null,
+    "completeness": null,
+    "reason": "judge_error"
+  },
+  {
+    "query": "What is the maternity leave entitlement?",
+    "retrieval_hit": false,
+    "answer_hit": false,
+    "num_sources": 5,
+    "faithfulness": null,
+    "completeness": null,
+    "reason": "judge_error"
+  },
+  {
+    "query": "How many casual leave days are credited per quarter?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is paternity leave duration?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How many bereavement leave days are allowed?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What happens if an employee takes more than 3 days of unapproved leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is miscarriage leave entitlement?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How many flexible holidays can an employee take?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How many SL days do I get?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is CL entitlement per year?",
+    "retrieval_hit": false,
+    "answer_hit": true,
+    "num_sources": 5,
+    "faithfulness": null,
+    "completeness": null,
+    "reason": "judge_error"
+  },
+  {
+    "query": "What is ML duration?",
+    "retrieval_hit": false,
+    "answer_hit": false,
+    "num_sources": 5,
+    "faithfulness": null,
+    "completeness": null,
+    "reason": "judge_error"
+  },
+  {
+    "query": "How many total leave days (SL plus CL) per year?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What leave cannot be accumulated or encashed?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Which leaves have no payment at year end?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What happens when sick leave runs out?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Can casual leave be taken as half day?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Are trainees covered by the leave policy?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "When does the leave policy apply to new joiners?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How to apply for planned leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What should an employee do if sick in the morning and cannot apply for leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How long in advance should planned leave be requested?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What documents are needed for maternity leave?",
+    "retrieval_hit": true,
+    "answer_hit": false,
+    "num_sources": 5,
+    "faithfulness": null,
+    "completeness": null,
+    "reason": "judge_error"
+  },
+  {
+    "query": "How many days does an employee need to work to be eligible for maternity leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is the minimum employment period for miscarriage leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Who are considered immediate family members for bereavement leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Do bereavement leave days count against the leave balance?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is the purpose of casual leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Can unused casual leave be carried forward to next year?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is flexible holiday leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Does flexible holiday require approval?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is the leave policy scope?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How is sick leave reclassified when exhausted?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What happens to unused SL at year end?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How many CL days are available per quarter?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What factors are considered when approving leave?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is the purpose of the leave policy document?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "Who are the stakeholders of the leave policy?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What is PL entitlement?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "How many weeks of leave after a miscarriage?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  },
+  {
+    "query": "What happens if leave is not approved and extends beyond 3 days?",
+    "error": "Server error '503 Service Unavailable' for url 'http://127.0.0.1:8003/api/v1/chat/query'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  }
+]

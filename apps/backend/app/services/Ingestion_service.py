@@ -186,6 +186,61 @@ class TextChunker:
     """Chunk text into manageable pieces"""
 
     @staticmethod
+    def _split_recursive(
+        text: str,
+        chunk_size: int,
+        separators: List[str]
+    ) -> List[str]:
+        """
+        Pure recursive splitting — no overlap applied. Returns a flat list of
+        pieces each <= chunk_size, splitting on the best available separator
+        (paragraphs -> lines -> spaces -> characters) and recursing into any
+        oversized piece with the next separator level.
+        """
+        separator = separators[-1]
+        new_separators: List[str] = []
+        for i, sep in enumerate(separators):
+            if sep == "":
+                separator = sep
+                new_separators = []
+                break
+            if sep in text:
+                separator = sep
+                new_separators = separators[i + 1:]
+                break
+
+        splits = text.split(separator) if separator != "" else list(text)
+
+        # Greedily merge small splits into chunks of <= chunk_size
+        final_chunks: List[str] = []
+        current_splits: List[str] = []
+        current_len = 0
+
+        for split in splits:
+            split_len = len(split)
+            if split_len > chunk_size:
+                if current_splits:
+                    final_chunks.append(separator.join(current_splits))
+                    current_splits = []
+                    current_len = 0
+                final_chunks.extend(
+                    TextChunker._split_recursive(split, chunk_size, new_separators or [""])
+                )
+            else:
+                sep_len = len(separator) if current_splits else 0
+                if current_len + sep_len + split_len > chunk_size and current_splits:
+                    final_chunks.append(separator.join(current_splits))
+                    current_splits = []
+                    current_len = 0
+                current_splits.append(split)
+                current_len += (len(separator) if len(current_splits) > 1 else 0) + split_len
+
+        if current_splits:
+            final_chunks.append(separator.join(current_splits))
+
+        return final_chunks
+
+    @staticmethod
     def chunk_recursive(
         text: str,
         chunk_size: int = None,
@@ -215,52 +270,11 @@ class TextChunker:
         chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
         separators = separators or ["\n\n", "\n", " ", ""]
 
-        # Find the best separator and keep the remaining ones for recursion
-        separator = separators[-1]
-        new_separators: List[str] = []
-        for i, sep in enumerate(separators):
-            if sep == "":
-                separator = sep
-                new_separators = []
-                break
-            if sep in text:
-                separator = sep
-                new_separators = separators[i + 1:]
-                break
-
-        splits = text.split(separator) if separator != "" else list(text)
-
-        # Greedily merge small splits into chunks of <= chunk_size
-        final_chunks: List[str] = []
-        current_splits: List[str] = []
-        current_len = 0
-
-        for split in splits:
-            split_len = len(split)
-            if split_len > chunk_size:
-                if current_splits:
-                    final_chunks.append(separator.join(current_splits))
-                    current_splits = []
-                    current_len = 0
-                final_chunks.extend(
-                    TextChunker.chunk_recursive(
-                        split,
-                        chunk_size,
-                        chunk_overlap,
-                        new_separators or [""]
-                    )
-                )
-            else:
-                sep_len = len(separator) if current_splits else 0
-                if current_len + sep_len + split_len > chunk_size and current_splits:
-                    final_chunks.append(separator.join(current_splits))
-                    current_splits = []
-                    current_len = 0
-                current_splits.append(split)
-                current_len += (len(separator) if len(current_splits) > 1 else 0) + split_len
-
-        if current_splits:
-            final_chunks.append(separator.join(current_splits))
+        # Split first (recursing into oversized pieces), with NO overlap applied
+        # at any recursion level — overlap is applied exactly once below, on the
+        # final flattened list. Applying it inside the recursion too would double
+        # up the prepended tail on chunks produced from an oversized split.
+        final_chunks = TextChunker._split_recursive(text, chunk_size, separators)
 
         if chunk_overlap > 0:
             result = []
