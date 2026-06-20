@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 
 from app.core.config import settings
+from app.core.exceptions import LLMServiceError
 from app.core.logging import logger_adapter
 
 
@@ -54,14 +55,18 @@ class LLMService:
 
         logger_adapter.info("Calling Gemini API", model=self.model, turns=len(contents))
 
-        response = await self.client.aio.models.generate_content(
-            model=self.model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=self._system_instruction,
-                max_output_tokens=settings.OPENAI_MAX_TOKENS,
-            ),
-        )
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._system_instruction,
+                    max_output_tokens=settings.OPENAI_MAX_TOKENS,
+                ),
+            )
+        except Exception as e:
+            logger_adapter.error(f"Gemini generate_content failed: {e}")
+            raise LLMServiceError(f"Failed to generate response: {e}")
 
         return response.text
 
@@ -89,16 +94,21 @@ class LLMService:
 
         logger_adapter.info("Streaming Gemini response", model=self.model, turns=len(contents))
 
-        async for chunk in await self.client.aio.models.generate_content_stream(
-            model=self.model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=self._system_instruction,
-                max_output_tokens=settings.OPENAI_MAX_TOKENS,
-            ),
-        ):
-            if chunk.text:
-                yield chunk.text
+        try:
+            stream = await self.client.aio.models.generate_content_stream(
+                model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=self._system_instruction,
+                    max_output_tokens=settings.OPENAI_MAX_TOKENS,
+                ),
+            )
+            async for chunk in stream:
+                if chunk.text:
+                    yield chunk.text
+        except Exception as e:
+            logger_adapter.error(f"Gemini streaming failed: {e}")
+            raise LLMServiceError(f"Failed to stream response: {e}")
 
     async def rewrite_query(
         self,
@@ -115,12 +125,13 @@ class LLMService:
                 history_ctx += f"{msg['role']}: {msg['content']}\n"
 
         prompt = (
-            "You are a query preprocessor for an HR document search system.\n"
+            "You are a query preprocessor for a document search system.\n"
             "Given the user question, return 1–3 search queries that will best retrieve "
             "relevant document chunks.\n\n"
             "Rules:\n"
-            "- Expand abbreviations: SL→Sick Leave, CL→Casual Leave, ML→Maternity Leave, "
-            "PL→Paternity Leave, BL→Bereavement Leave.\n"
+            "- If the question uses an abbreviation or acronym, expand it only if its meaning "
+            "is clear from the conversation history or the question's own context; otherwise "
+            "leave it as-is rather than guessing.\n"
             "- If the question has multiple distinct sub-questions, split into separate queries.\n"
             "- Otherwise return exactly 1 query.\n"
             "- Output ONLY a JSON array of strings. No explanation, no markdown.\n\n"
@@ -140,7 +151,7 @@ class LLMService:
                 cleaned = [q.strip() for q in queries if isinstance(q, str) and q.strip()]
                 if cleaned:
                     return cleaned
-        except Exception:
-            pass  # any failure falls back to original query
+        except Exception as e:
+            logger_adapter.warning(f"Query rewrite failed, falling back to original query: {e}")
 
         return [query]

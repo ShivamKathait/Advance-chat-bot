@@ -7,6 +7,13 @@ import openpyxl
 import pytesseract
 import tiktoken
 
+from app.core.exceptions import (
+    AppError,
+    DocumentParsingError,
+    DocumentTooLargeError,
+    EmbeddingServiceError,
+    UnsupportedFileTypeError,
+)
 from app.core.logging import logger_adapter
 from app.utils.enums import FileType
 from app.core.config import settings
@@ -18,6 +25,7 @@ from charset_normalizer import from_bytes
 from pdf2image import convert_from_bytes
 from google import genai
 from tenacity import retry, stop_after_attempt, wait_exponential
+from google.genai import types as genai_types
 
 
 class DocumentParser:
@@ -29,7 +37,7 @@ class DocumentParser:
             doc = fitz.open(stream=file, filetype="pdf")
 
             if len(doc) > settings.MAX_PDF_PAGES:
-                raise ValueError(
+                raise DocumentTooLargeError(
                     f"PDF has {len(doc)} pages; maximum allowed is {settings.MAX_PDF_PAGES}"
                 )
 
@@ -73,9 +81,11 @@ class DocumentParser:
                     result.append(f"[Page {page_num + 1}]\n" + "\n".join(parts))
 
             return "\n\n".join(result)
+        except AppError:
+            raise
         except Exception as e:
             logger_adapter.error(f"Error parsing PDF: {e}")
-            raise
+            raise DocumentParsingError(f"Failed to parse PDF: {e}")
 
     @staticmethod
     async def parse_docx(file: bytes) -> str:
@@ -96,14 +106,14 @@ class DocumentParser:
             return "\n".join(text_content)
         except Exception as e:
             logger_adapter.error(f"Error parsing DOCX: {str(e)}")
-            raise
+            raise DocumentParsingError(f"Failed to parse DOCX: {e}")
 
     @staticmethod
     def decode_text(file_bytes: bytes) -> str:
         result = from_bytes(file_bytes).best()
 
         if result is None:
-            raise ValueError("Unable to detect file encoding")
+            raise DocumentParsingError("Unable to detect file encoding")
 
         return str(result)
 
@@ -111,9 +121,11 @@ class DocumentParser:
     async def parse_txt(file: bytes) -> str:
         try:
             return DocumentParser.decode_text(file)
+        except AppError:
+            raise
         except Exception as e:
             logger_adapter.error(f"Error parsing Text file: {str(e)}")
-            raise
+            raise DocumentParsingError(f"Failed to parse text file: {e}")
 
     @staticmethod
     async def parse_markdown(file: bytes) -> str:
@@ -130,9 +142,11 @@ class DocumentParser:
                     ", ".join(f"{k}: {v}" for k, v in row.items())
                 )
             return "\n".join(rows)
+        except AppError:
+            raise
         except Exception as e:
             logger_adapter.error(f"Error parsing CSV: {str(e)}")
-            raise
+            raise DocumentParsingError(f"Failed to parse CSV: {e}")
 
     @staticmethod
     async def parse_xlsx(file: bytes) -> str:
@@ -150,7 +164,7 @@ class DocumentParser:
             return "\n\n".join(sections)
         except Exception as e:
             logger_adapter.error(f"Error parsing XLSX: {str(e)}")
-            raise
+            raise DocumentParsingError(f"Failed to parse XLSX: {e}")
 
     @staticmethod
     async def parse_document(file: bytes, file_type: str) -> str:
@@ -179,7 +193,7 @@ class DocumentParser:
         elif file_type == FileType.XLSX:
             return await DocumentParser.parse_xlsx(file)
         else:
-            raise ValueError(f"Unsupported file type: {file_type}")
+            raise UnsupportedFileTypeError(f"Unsupported file type: {file_type}")
 
 
 class TextChunker:
@@ -392,7 +406,7 @@ class EmbeddingGenerator:
 
         except Exception as e:
             logger_adapter.error(f"Error generating embeddings: {str(e)}")
-            raise
+            raise EmbeddingServiceError(f"Failed to generate embeddings: {e}")
 
     async def generate_embedding(self, text: str) -> List[float]:
         """
@@ -428,7 +442,6 @@ class DocumentIngestionService:
         This label is prepended before embedding to improve retrieval precision
         (Anthropic Contextual Retrieval, 2024).
         """
-        from google.genai import types as genai_types
         prompt = (
             f"Document: {filename}\n\n"
             f"Full document (first 3000 chars):\n{document_text[:3000]}\n\n"
@@ -483,7 +496,7 @@ class DocumentIngestionService:
             logger_adapter.info("Text chunked", document_id=document_id, num_chunks=len(chunks))
 
             if len(chunks) > settings.MAX_CHUNKS:
-                raise ValueError(
+                raise DocumentTooLargeError(
                     f"Document produces {len(chunks)} chunks; maximum allowed is {settings.MAX_CHUNKS}"
                 )
 

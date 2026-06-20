@@ -1,4 +1,5 @@
 
+import asyncio
 import collections
 import datetime
 import json
@@ -12,6 +13,7 @@ from qdrant_client import AsyncQdrantClient, models
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from qdrant_client.http.exceptions import UnexpectedResponse
 
+from app.core.exceptions import VectorStoreError
 from app.core.logging import logger_adapter
 from app.core.config import settings
 from app.core.metrics import (
@@ -61,7 +63,7 @@ class QdrantVectorStore:
             pass  # Collection doesn't exist — fall through to create
         except Exception as e:
             logger_adapter.error(f"Error initializing collection: {str(e)}")
-            raise
+            raise VectorStoreError(f"Failed to initialize Qdrant collection: {e}")
 
         try:
             await self.client.create_collection(
@@ -79,7 +81,7 @@ class QdrantVectorStore:
             await self._ensure_document_id_index()
         except Exception as e:
             logger_adapter.error(f"Error creating collection: {str(e)}")
-            raise
+            raise VectorStoreError(f"Failed to create Qdrant collection: {e}")
 
     async def _ensure_document_id_index(self):
         """
@@ -136,7 +138,7 @@ class QdrantVectorStore:
             return True
         except Exception as e:
             logger_adapter.error(f"Error upserting points: {str(e)}")
-            raise
+            raise VectorStoreError(f"Failed to upsert points: {e}")
 
     async def search(
         self,
@@ -188,7 +190,7 @@ class QdrantVectorStore:
 
         except Exception as e:
             logger_adapter.error(f"Error searching vectors: {str(e)}")
-            raise
+            raise VectorStoreError(f"Failed to search vectors: {e}")
 
     def _build_filter(self, filters: Dict[str, Any]) -> models.Filter:
         """
@@ -239,7 +241,7 @@ class QdrantVectorStore:
 
         except Exception as e:
             logger_adapter.error(f"Error deleting points: {str(e)}")
-            raise
+            raise VectorStoreError(f"Failed to delete points: {e}")
 
     async def get_collection_info(self) -> Dict[str, Any]:
         """
@@ -269,6 +271,9 @@ class VectorStoreService:
         self.embedding_generator = embedding_generator
         self.llm_service = LLMService()
         self._redis = None  # lazy-initialised on first BM25 call
+        self._bm25_index = None
+        self._bm25_chunks = None
+        self._bm25_cached_version = None
 
         self.reranker = None
         if settings.USE_RERANKER and settings.COHERE_API_KEY:
@@ -388,21 +393,41 @@ class VectorStoreService:
             self._redis = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
         return self._redis
 
+    async def _timed_bm25_search(self, query: str, top_k: int) -> tuple:
+        """Wraps _bm25_search with its own timer, since the caller awaits this
+        task after dense retrieval — timing from the caller's perspective would
+        include the overlapped wait, not the actual BM25 work duration."""
+        t0 = time.perf_counter()
+        results = await self._bm25_search(query, top_k=top_k)
+        return results, round((time.perf_counter() - t0) * 1000)
+
     async def _bm25_search(self, query: str, top_k: int) -> List[Dict[str, Any]]:
         try:
             r = await self._get_redis()
-            doc_keys = await r.smembers("bm25:doc_keys")
-            if not doc_keys:
-                return []
-            all_chunks: List[Dict[str, Any]] = []
-            for key in doc_keys:
-                raw = await r.get(key)
-                if raw:
-                    all_chunks.extend(json.loads(raw))
-            if not all_chunks:
-                return []
-            corpus = [c["text"].lower().split() for c in all_chunks]
-            bm25 = BM25Okapi(corpus)
+            current_version = await r.get("bm25:version")
+
+            if self._bm25_index is not None and current_version == self._bm25_cached_version:
+                bm25, all_chunks = self._bm25_index, self._bm25_chunks
+            else:
+                doc_keys = await r.smembers("bm25:doc_keys")
+                if not doc_keys:
+                    self._bm25_index = self._bm25_chunks = None
+                    self._bm25_cached_version = current_version
+                    return []
+                all_chunks: List[Dict[str, Any]] = []
+                for key in doc_keys:
+                    raw = await r.get(key)
+                    if raw:
+                        all_chunks.extend(json.loads(raw))
+                if not all_chunks:
+                    self._bm25_index = self._bm25_chunks = None
+                    self._bm25_cached_version = current_version
+                    return []
+                corpus = [c["text"].lower().split() for c in all_chunks]
+                bm25 = BM25Okapi(corpus)
+                self._bm25_index, self._bm25_chunks = bm25, all_chunks
+                self._bm25_cached_version = current_version
+
             scores = bm25.get_scores(query.lower().split())
             top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:top_k]
             return [
@@ -462,6 +487,14 @@ class VectorStoreService:
             "avg_chunks_returned": avg("num_chunks"),
         }
 
+    async def _embed_and_search(self, q: str, fetch_k: int) -> List[Dict[str, Any]]:
+        q_embedding = await self.embedding_generator.generate_embedding(q)
+        return await self.search_similar(
+            query_embedding=q_embedding,
+            top_k=fetch_k,
+            score_threshold=settings.SIMILARITY_THRESHOLD,
+        )
+
     async def retrieve(
         self,
         query: str,
@@ -473,7 +506,8 @@ class VectorStoreService:
         Retrieval-only portion of the RAG pipeline — no LLM generation.
 
         Steps:
-        1. Query rewriting (optional)
+        1. Query rewriting (optional) — runs concurrently with BM25 search below,
+           since BM25 only needs the original query, not the rewritten ones.
         2. Dense retrieval
         3. BM25 sparse retrieval + Reciprocal Rank Fusion
         4. Deduplicate overlapping chunks
@@ -487,6 +521,12 @@ class VectorStoreService:
         # Fetch more candidates when reranker is active so it has room to reorder
         fetch_k = settings.MAX_RERANK_CANDIDATES if self.reranker else desired_k
 
+        # BM25 doesn't depend on query rewriting/dense retrieval — kick it off now
+        # so it overlaps with those instead of running after them.
+        bm25_task = None
+        if settings.BM25_ENABLED:
+            bm25_task = asyncio.create_task(self._timed_bm25_search(query, fetch_k))
+
         # 1. Query rewriting — expand abbreviations and decompose multi-part questions
         if rewrite and settings.QUERY_REWRITE_ENABLED:
             t0 = time.perf_counter()
@@ -496,17 +536,14 @@ class VectorStoreService:
         else:
             rewritten_queries = [query]
 
-        # 2. Dense retrieval — embed each rewritten query, merge unique results
+        # 2. Dense retrieval — embed+search all rewritten queries concurrently, merge unique results
         t0 = time.perf_counter()
         seen_chunk_keys: set = set()
         dense_results: List[Dict[str, Any]] = []
-        for q in rewritten_queries:
-            q_embedding = await self.embedding_generator.generate_embedding(q)
-            results = await self.search_similar(
-                query_embedding=q_embedding,
-                top_k=fetch_k,
-                score_threshold=settings.SIMILARITY_THRESHOLD,
-            )
+        results_per_query = await asyncio.gather(
+            *[self._embed_and_search(q, fetch_k) for q in rewritten_queries]
+        )
+        for results in results_per_query:
             for r in results:
                 key = r["metadata"].get("document_id", "") + str(r["metadata"].get("chunk_index", ""))
                 if key not in seen_chunk_keys:
@@ -516,12 +553,10 @@ class VectorStoreService:
 
         # 3. BM25 sparse retrieval + Reciprocal Rank Fusion
         raw_results = dense_results
-        if settings.BM25_ENABLED:
-            t0 = time.perf_counter()
-            bm25_results = await self._bm25_search(query, top_k=fetch_k)
+        if bm25_task is not None:
+            bm25_results, timings["bm25_ms"] = await bm25_task
             if bm25_results:
                 raw_results = self._reciprocal_rank_fusion(dense_results, bm25_results)
-            timings["bm25_ms"] = round((time.perf_counter() - t0) * 1000)
 
         # 4. Remove overlapping chunks (caused by 200-char ingestion overlap)
         raw_results = self._deduplicate_chunks(raw_results)
@@ -657,61 +692,11 @@ class VectorStoreService:
           {"type": "sources", "sources": [...], "num_sources": N}
           {"type": "done"}
         """
-        desired_k = top_k or settings.TOP_K_RETRIEVAL
-        fetch_k = settings.MAX_RERANK_CANDIDATES if self.reranker else desired_k
-
-        # 1. Query rewriting
-        if settings.QUERY_REWRITE_ENABLED:
-            rewritten_queries = await self.llm_service.rewrite_query(query, conversation_history)
-        else:
-            rewritten_queries = [query]
-
-        # 2. Dense retrieval
-        seen_chunk_keys: set = set()
-        dense_results: List[Dict[str, Any]] = []
-        for q in rewritten_queries:
-            q_embedding = await self.embedding_generator.generate_embedding(q)
-            results = await self.search_similar(
-                query_embedding=q_embedding,
-                top_k=fetch_k,
-                score_threshold=settings.SIMILARITY_THRESHOLD,
-            )
-            for r in results:
-                key = r["metadata"].get("document_id", "") + str(r["metadata"].get("chunk_index", ""))
-                if key not in seen_chunk_keys:
-                    seen_chunk_keys.add(key)
-                    dense_results.append(r)
-
-        # 3. BM25 + RRF
-        raw_results = dense_results
-        if settings.BM25_ENABLED:
-            bm25_results = await self._bm25_search(query, top_k=fetch_k)
-            if bm25_results:
-                raw_results = self._reciprocal_rank_fusion(dense_results, bm25_results)
-
-        # 4. Dedup
-        raw_results = self._deduplicate_chunks(raw_results)
-
-        # 5. Rerank with fallback
-        if self.reranker and raw_results:
-            try:
-                raw_results = await self.reranker.rerank(query=query, chunks=raw_results, top_n=desired_k)
-            except Exception as e:
-                logger_adapter.warning(f"Reranker failed during streaming, using dense order: {e}")
-                raw_results = raw_results[:desired_k]
-        else:
-            raw_results = raw_results[:desired_k]
-
-        context = "\n\n".join(r["text"] for r in raw_results)
-        sources = [
-            {
-                "content": r["text"],
-                "score": r.get("rerank_score", r["score"]),
-                "metadata": r["metadata"],
-            }
-            for r in raw_results
-        ]
-        num_docs = len(raw_results)
+        # 1-5. Retrieval (rewrite, dense + BM25 search, dedup, rerank) — shared with process_query
+        retrieval = await self.retrieve(query, top_k=top_k, conversation_history=conversation_history)
+        context = retrieval["context"]
+        sources = retrieval["sources"]
+        num_docs = retrieval["num_sources"]
 
         # 6. Stream LLM tokens
         async for token in self.llm_service.generate_response_stream(

@@ -3,10 +3,15 @@ import uvicorn
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from prometheus_client import make_asgi_app
 
 from app.core.config import settings
+from app.core.exceptions import AppError
 from app.core.logging import setup_logging, logger_adapter
 from app.api.chat import router as chat_router
 from app.api.documents import router as documents_router
@@ -14,9 +19,7 @@ from app.api.debug import router as debug_router
 from app.api.health import router as health_router
 from app.db.base import Base
 from app.db.session import engine
-import app.models.conversation  # noqa: F401 — registers Conversation + Message with Base.metadata
-import app.models.document      # noqa: F401 — registers Document with Base.metadata
-import app.models.feedback      # noqa: F401 — registers Feedback with Base.metadata
+from app.schemas.errors import ErrorBody, ErrorResponse
 from app.services.vector_service import vector_store
 
 @asynccontextmanager
@@ -28,6 +31,7 @@ async def lifespan(app: FastAPI):
         logger_adapter.info("Qdrant collection ready")
     except Exception as e:
         logger_adapter.error(f"Qdrant init failed: {e}")
+        raise
     logger_adapter.info("RAG Chatbot API starting", environment=settings.ENVIRONMENT)
     yield
     logger_adapter.info("RAG Chatbot API shutting down")
@@ -61,7 +65,56 @@ app.add_middleware(
     allow_headers = settings.CORS_ALLOW_HEADERS,
 )
 
-from prometheus_client import make_asgi_app
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    logger_adapter.warning(
+        "Handled application error",
+        error_code=exc.error_code,
+        error_message=exc.message,
+        path=request.url.path,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(error=ErrorBody(code=exc.error_code, message=exc.message)).model_dump(),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content=ErrorResponse(
+            error=ErrorBody(code="VALIDATION_ERROR", message="Invalid request data")
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(error=ErrorBody(code="HTTP_ERROR", message=str(exc.detail))).model_dump(),
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger_adapter.error(
+        "Unhandled exception",
+        error=str(exc),
+        error_type=type(exc).__name__,
+        path=request.url.path,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(
+            error=ErrorBody(code="INTERNAL_ERROR", message="An unexpected error occurred")
+        ).model_dump(),
+    )
+
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 

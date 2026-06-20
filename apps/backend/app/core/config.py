@@ -118,6 +118,14 @@ class Settings(BaseSettings):
     MAX_QUERY_LENGTH: int = 500
     MIN_QUERY_LENGTH: int = 3
     
+    # ── Email / SMTP ──────────────────────────────────────────────────────────
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = ""
+    EMAIL_FROM_NAME: str = "Advance Chatbot"
+
     # ==================== Monitoring & Observability ====================
     ENABLE_METRICS: bool = True
     ENABLE_TRACING: bool = False

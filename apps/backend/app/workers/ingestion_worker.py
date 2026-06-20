@@ -19,6 +19,7 @@ from typing import Any, Dict
 from arq.connections import RedisSettings, ArqRedis, create_pool
 
 from app.core.config import settings
+from app.core.exceptions import StorageError, ValidationError
 from app.core.logging import logger_adapter
 from app.db.session import SessionLocal
 from app.repositories.document_repository import DocumentRepository
@@ -57,7 +58,10 @@ async def process_ingestion(
 
         # 1. Download from MinIO
         minio: MinioService = ctx["minio"]
-        file_bytes = minio.download_bytes(bucket=settings.MINIO_BUCKET, key=storage_key)
+        try:
+            file_bytes = minio.download_bytes(bucket=settings.MINIO_BUCKET, key=storage_key)
+        except Exception as exc:
+            raise StorageError(f"Failed to download {storage_key} from storage: {exc}") from exc
         logger_adapter.info("Downloaded file from storage", document_id=document_id, bytes=len(file_bytes))
 
         # 2. Parse → chunk → embed
@@ -92,6 +96,7 @@ async def process_ingestion(
                 ]
                 await redis.set(bm25_key, json.dumps(chunk_records))
                 await redis.sadd("bm25:doc_keys", bm25_key)
+                await redis.incr("bm25:version")
                 logger_adapter.info("BM25 corpus updated", document_id=document_id)
             except Exception as e:
                 logger_adapter.warning(f"BM25 Redis store failed (non-fatal): {e}")
@@ -103,7 +108,11 @@ async def process_ingestion(
     except Exception as exc:
         logger_adapter.error("Ingestion job failed", document_id=document_id, error=str(exc))
         repo.update_status(doc_uuid, "failed", error_message=str(exc))
-        raise  # ARQ will mark the job as failed
+        if isinstance(exc, ValidationError):
+            # Permanent failure (bad input, e.g. corrupt/oversized/unsupported file) —
+            # retrying can't succeed, so don't burn ARQ retries on it.
+            return
+        raise  # transient/unknown failure — let ARQ retry
     finally:
         db.close()
 

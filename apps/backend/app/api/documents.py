@@ -1,8 +1,9 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import DocumentNotFoundError
 from app.db.session import get_db
 from app.dependencies.services import get_document_service, get_document_repository
 from app.repositories.document_repository import DocumentRepository
@@ -67,7 +68,7 @@ async def reingest_document(
     doc_uuid = uuid.UUID(document_id)
     doc = repo.get_by_id(doc_uuid)
     if doc is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise DocumentNotFoundError("Document not found")
 
     # Remove old vectors from Qdrant
     await vector_store.remove_document(document_id)
@@ -78,6 +79,7 @@ async def reingest_document(
         bm25_key = f"bm25:doc:{document_id}"
         await r.delete(bm25_key)
         await r.srem("bm25:doc_keys", bm25_key)
+        await r.incr("bm25:version")
     except Exception:
         pass  # non-fatal if Redis is unavailable
 

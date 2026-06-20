@@ -2,8 +2,10 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.repositories.auth_repository import AuthRepository
 from app.repositories.chat_repository import ChatRepository
 from app.repositories.document_repository import DocumentRepository
+from app.services.auth_service import AuthService
 from app.services.chat_service import ChatService
 from app.services.document_service import DocumentService
 from app.services.minio_service import MinioService
@@ -30,3 +32,12 @@ def get_chat_service(
     chat_repository: ChatRepository = Depends(get_chat_repository),
 ) -> ChatService:
     return ChatService(vector_service=vector_store, chat_repository=chat_repository)
+
+
+def get_auth_repository(db: Session = Depends(get_db)) -> AuthRepository:
+    return AuthRepository(db)
+
+def get_auth_service(
+    get_auth_repository: AuthRepository = Depends(get_auth_repository),
+) -> AuthService:
+    return AuthService()

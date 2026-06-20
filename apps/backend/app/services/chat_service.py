@@ -38,7 +38,7 @@ class ChatService:
             conversation_history = [
                 {"role": msg.role, "content": msg.content} for msg in db_messages
             ]
-
+    
             # 3. Run RAG pipeline
             result = await self.vector_service.process_query(
                 query=message,

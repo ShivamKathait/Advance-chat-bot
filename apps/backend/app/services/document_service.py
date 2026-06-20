@@ -2,9 +2,17 @@ import hashlib
 import os
 import uuid
 
-from fastapi import HTTPException, UploadFile, status
+from fastapi import UploadFile
 
 from app.core.config import settings
+from app.core.exceptions import (
+    AppError,
+    DocumentNotFoundError,
+    DocumentTooLargeError,
+    StorageError,
+    UnsupportedFileTypeError,
+    ValidationError,
+)
 from app.core.logging import logger_adapter
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentListResponse, DocumentResponse, DocumentStatusResponse
@@ -26,26 +34,21 @@ class DocumentService:
         GET /documents/{id}/status for progress.
         """
         if not file.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File must have a name",
-            )
+            raise ValidationError("File must have a name")
 
         file_content = await file.read()
 
         if len(file_content) > settings.MAX_DOCUMENT_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File too large. Maximum size: {settings.MAX_DOCUMENT_SIZE} bytes",
+            raise DocumentTooLargeError(
+                f"File too large. Maximum size: {settings.MAX_DOCUMENT_SIZE} bytes"
             )
 
         file_name = sanitize_input(file.filename, max_length=255)
         file_type = os.path.splitext(file_name)[1].lower()
 
         if file_type not in settings.ALLOWED_FILE_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File type not supported. Allowed: {settings.ALLOWED_FILE_TYPES}",
+            raise UnsupportedFileTypeError(
+                f"File type not supported. Allowed: {settings.ALLOWED_FILE_TYPES}"
             )
 
         content_hash = hashlib.sha256(file_content).hexdigest()
@@ -92,10 +95,7 @@ class DocumentService:
                 document_id=str(document_id),
                 error=str(exc),
             )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="File storage unavailable. Please try again.",
-            )
+            raise StorageError("File storage unavailable. Please try again.")
 
         logger_adapter.info(
             "Document uploaded to storage",
@@ -127,10 +127,7 @@ class DocumentService:
         """Return the current ingestion status for a document."""
         document = self.repository.get_by_id(document_id)
         if document is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found",
-            )
+            raise DocumentNotFoundError("Document not found")
         return DocumentStatusResponse(
             id=str(document.id),
             status=document.status,
@@ -153,10 +150,7 @@ class DocumentService:
             )
         except Exception as e:
             logger_adapter.error("Error listing documents", error=str(e))
-            raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving documents"
-        )
+            raise AppError("Error retrieving documents")
 
     async def delete_document(self, document_id: uuid.UUID):
         """
@@ -171,10 +165,7 @@ class DocumentService:
         """
         document = self.repository.get_by_id(document_id)
         if document is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found",
-            )
+            raise DocumentNotFoundError("Document not found")
 
         try:
             storage_key = document.storage_key
@@ -191,6 +182,7 @@ class DocumentService:
                 bm25_key = f"bm25:doc:{document_id}"
                 await r.delete(bm25_key)
                 await r.srem("bm25:doc_keys", bm25_key)
+                await r.incr("bm25:version")
             except Exception as e:
                 logger_adapter.warning(f"Redis BM25 cleanup failed (non-fatal): {e}")
 
@@ -202,7 +194,4 @@ class DocumentService:
             }
         except Exception as e:
             logger_adapter.error("Error deleting document", document_id=document_id, error=str(e))
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error deleting document",
-            )
+            raise AppError("Error deleting document")

@@ -1,476 +1,271 @@
-# 🚀 RAG Chatbot - Simple & Powerful
+# RAG Chatbot API
 
-> Production-grade RAG system with advanced retrieval. **Clean monorepo - just Web + Backend.**
+> A production-style Retrieval-Augmented Generation backend: hybrid search (dense + BM25), reciprocal rank fusion, Cohere reranking, Gemini generation, SSE streaming, guardrails, async ingestion, and a built-in eval harness.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logoColor=white)](https://qdrant.tech/)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
 ---
 
-## ✨ What This Is
+## What This Is
 
-A **FAANG-level RAG chatbot** that showcases:
-- ✅ Advanced retrieval (hybrid search + reranking)
-- ✅ Streaming responses with citations
-- ✅ Production infrastructure
-- ✅ Clean, maintainable code
+This is currently a **backend-only API service** — there is no UI yet (see [Known Gaps](#known-gaps)). It's a FastAPI app that implements a full RAG pipeline:
 
-**Philosophy**: Start simple, scale when needed.
+- Document ingestion (PDF/DOCX/TXT/MD/CSV/XLSX, with OCR fallback for scanned PDFs) processed asynchronously by an ARQ worker
+- Hybrid retrieval: Qdrant dense vector search + Redis-backed BM25 sparse search, combined with reciprocal rank fusion
+- Cohere reranking on top of the fused candidates
+- Query rewriting and answer generation via Google Gemini
+- Streaming responses over Server-Sent Events, with source citations
+- Guardrails for prompt-injection and harmful-content detection on both input and output
+- Prometheus metrics, structured JSON logging, and a small eval harness against a golden query set
 
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────┐
-│         Next.js Frontend            │
-│   (Streaming Chat Interface)        │
-└─────────────────────────────────────┘
-                ↓ HTTP/SSE
-┌─────────────────────────────────────┐
-│        FastAPI Backend              │
-│   (Complete RAG Pipeline)           │
-│                                     │
-│  • Document ingestion               │
-│  • Hybrid retrieval                 │
-│  • Reranking                        │
-│  • LLM generation                   │
-│  • Caching                          │
-└─────────────────────────────────────┘
-                ↓
-    ┌──────┬─────────┬────────┐
-    ↓      ↓         ↓        ↓
-┌────────┐ ┌────────┐ ┌──────┐
-│Postgres│ │Qdrant  │ │Redis │
-│        │ │Vector  │ │Cache │
-└────────┘ └────────┘ └──────┘
-```
-
----
-
-## 📁 Project Structure
+## Architecture
 
 ```
-rag-chatbot/
+┌──────────────────────────┐
+│   HTTP Client            │
+│  (curl / Postman / your  │
+│   own frontend, later)   │
+└──────────────────────────┘
+            │ HTTP / SSE
+            ▼
+┌──────────────────────────┐
+│      FastAPI Backend     │
+│   apps/backend/app/      │
+│                          │
+│  • Chat (query/stream)   │
+│  • Documents (upload)    │
+│  • Health / Debug        │
+└──────────────────────────┘
+            │
+   ┌────────┼─────────┬───────────┐
+   ▼        ▼         ▼           ▼
+┌──────┐ ┌───────┐ ┌────────┐ ┌───────┐
+│Qdrant│ │ Redis │ │Postgres│ │ MinIO │
+│vector│ │BM25 + │ │chats / │ │ file  │
+│store │ │queue  │ │docs DB │ │storage│
+└──────┘ └───────┘ └────────┘ └───────┘
+            ▲
+            │ ARQ job queue
+┌──────────────────────────┐
+│   Ingestion Worker        │
+│ app/workers/ingestion_    │
+│ worker.py (separate       │
+│ process)                  │
+└──────────────────────────┘
+```
+
+## Project Structure
+
+```
+advance-chat-bot/
 │
 ├── apps/
-│   ├── backend/              # FastAPI - ALL backend logic here
+│   ├── backend/                       # FastAPI service — everything currently lives here
 │   │   ├── app/
-│   │   │   ├── main.py      # API entry point
+│   │   │   ├── main.py                # Entry point: middleware, lifespan, routers, /metrics
 │   │   │   │
-│   │   │   ├── api/         # API routes
-│   │   │   │   ├── chat.py
-│   │   │   │   ├── documents.py
-│   │   │   │   └── health.py
+│   │   │   ├── api/                   # Route handlers
+│   │   │   │   ├── chat.py            # /api/v1/chat: query, stream, feedback
+│   │   │   │   ├── documents.py       # /api/v1/documents: upload, status, list, delete, reingest
+│   │   │   │   ├── health.py          # /health: Qdrant/Redis/Postgres dependency checks
+│   │   │   │   ├── debug.py           # /api/v1/debug: pipeline status, rag-stats
+│   │   │   │   └── auth.py            # Stub — empty, no auth implemented yet
 │   │   │   │
-│   │   │   ├── services/    # Business logic
-│   │   │   │   ├── rag.py           # Core RAG pipeline
-│   │   │   │   ├── retrieval.py     # Hybrid search
-│   │   │   │   ├── embedding.py     # Embeddings
-│   │   │   │   ├── reranking.py     # Reranker
-│   │   │   │   ├── llm.py           # LLM calls
-│   │   │   │   ├── cache.py         # Redis caching
-│   │   │   │   └── ingestion.py     # Document processing
+│   │   │   ├── services/              # Business logic
+│   │   │   │   ├── vector_service.py      # Qdrant + BM25 hybrid retrieval, RRF, rerank orchestration
+│   │   │   │   ├── llm_service.py         # Gemini generation + query rewriting
+│   │   │   │   ├── chat_service.py        # Chat orchestration: guardrails, history, persistence
+│   │   │   │   ├── Ingestion_service.py   # Parsing, chunking, embedding generation
+│   │   │   │   ├── document_service.py    # Upload lifecycle, dedup, enqueues ingestion job
+│   │   │   │   ├── rerank_service.py       # Cohere reranking
+│   │   │   │   ├── minio_service.py        # S3-compatible object storage
+│   │   │   │   └── auth_service.py         # Stub — empty
 │   │   │   │
-│   │   │   ├── core/        # Config & utilities
-│   │   │   │   ├── config.py
-│   │   │   │   ├── logging.py
-│   │   │   │   └── security.py
+│   │   │   ├── core/                  # Config & cross-cutting concerns
+│   │   │   │   ├── config.py          # Settings (env-driven)
+│   │   │   │   ├── guardrails.py      # Prompt-injection / harmful-content checks
+│   │   │   │   ├── security.py        # Input sanitization, token utilities
+│   │   │   │   ├── logging.py         # Structured JSON logging w/ request IDs
+│   │   │   │   └── metrics.py         # Prometheus counters/histograms
 │   │   │   │
-│   │   │   └── models/      # Database models
-│   │   │       ├── document.py
-│   │   │       └── conversation.py
+│   │   │   ├── db/                    # SQLAlchemy engine/session setup
+│   │   │   ├── models/                # User, Document, Conversation+Message, Feedback
+│   │   │   ├── repositories/          # ChatRepository, DocumentRepository
+│   │   │   ├── schemas/               # Pydantic request/response models
+│   │   │   ├── dependencies/          # FastAPI DI wiring for services/repos
+│   │   │   ├── workers/               # ingestion_worker.py — ARQ background job
+│   │   │   ├── utils/                 # Shared enums/helpers
+│   │   │   └── eval/                  # evaluator.py + golden_set.json + result snapshots
 │   │   │
-│   │   ├── tests/           # Backend tests
-│   │   └── requirements.txt
+│   │   ├── requirements.txt
+│   │   └── .env.example
 │   │
-│   └── web/                 # Next.js - Frontend
-│       ├── app/             # App router
-│       │   ├── page.tsx     # Main chat page
-│       │   └── layout.tsx
-│       │
-│       ├── components/      # React components
-│       │   ├── chat/
-│       │   │   ├── ChatMessage.tsx
-│       │   │   ├── ChatInput.tsx
-│       │   │   └── SourceCard.tsx
-│       │   └── ui/          # Reusable UI
-│       │
-│       ├── lib/             # Utilities
-│       │   ├── api.ts       # API client
-│       │   └── utils.ts
-│       │
-│       ├── hooks/           # Custom hooks
-│       │   └── useChat.ts
-│       │
-│       └── package.json
+│   └── web/                           # Empty placeholder — no frontend exists yet
 │
-├── docker-compose.yml       # Infrastructure (3 services)
-├── package.json             # Monorepo scripts
-├── pnpm-workspace.yaml      # Workspace config
-├── .gitignore
-└── README.md
+├── docker-compose.yml                 # Empty placeholder — not wired up yet
+├── package.json                       # Empty placeholder — not wired up yet
+├── pnpm-workspace.yaml                # Empty placeholder — not wired up yet
+└── Readme.md
 ```
 
-**Key principle**: Everything in `apps/backend/app/services/` - no separate microservices.
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- Docker Desktop
-- pnpm 8+
+- Python 3.10+
+- PostgreSQL, Redis, Qdrant, MinIO running somewhere reachable (locally or via individual `docker run` commands — `docker-compose.yml` in this repo is currently an empty placeholder, not a working stack)
+- A [Google Gemini API key](https://ai.google.dev/) — required, since generation and embeddings both go through Gemini
+- A Cohere API key — optional, only needed if `USE_RERANKER=true`
 
 ### Installation
 
 ```bash
-# 1. Clone repository
-git clone <your-repo>
-cd rag-chatbot
+# 1. Clone and enter the backend
+git clone <this-repo>
+cd advance-chat-bot/apps/backend
 
-# 2. Install frontend dependencies
-pnpm install
-
-# 3. Install backend dependencies
-cd apps/backend
+# 2. Create venv and install dependencies
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cd ../..
 
-# 4. Set up environment
-cp apps/backend/.env.example apps/backend/.env
-# Edit apps/backend/.env with your OPENAI_API_KEY
+# 3. Set up environment
+cp .env.example .env
+# Edit .env: fill in SECRET_KEY, DATABASE_URL, REDIS_URL, QDRANT_URL, MINIO_*
+# IMPORTANT: also add GEMINI_API_KEY=... manually — it's required by
+# llm_service.py / Ingestion_service.py but is NOT in .env.example yet.
 
-# 5. Start infrastructure
-pnpm docker:up
+# 4. Start dependencies (example — adjust to your setup)
+docker run -d -p 5432:5432 -e POSTGRES_USER=rag_user -e POSTGRES_PASSWORD=rag_password -e POSTGRES_DB=rag_db postgres:16
+docker run -d -p 6379:6379 redis:7
+docker run -d -p 6333:6333 qdrant/qdrant
+docker run -d -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data --console-address ":9001"
 
-# 6. Start development servers
-pnpm dev
+# 5. Run the API (creates DB tables + Qdrant collection on startup)
+uvicorn app.main:app --reload --port 8003
+
+# 6. In a second terminal, run the ingestion worker (required for uploads to complete)
+arq app.workers.ingestion_worker.WorkerSettings
 ```
 
 **Access**:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- API: http://localhost:8003
+- Swagger docs: http://localhost:8003/docs
+- ReDoc: http://localhost:8003/redoc
+- Prometheus metrics: http://localhost:8003/metrics
+- Health check: http://localhost:8003/health
 
----
+## Configuration
 
-## 🔧 Configuration
+All settings are defined in [`app/core/config.py`](apps/backend/app/core/config.py) and read from `.env`. Key groups:
 
-### Backend Environment (`apps/backend/.env`)
+| Group | Variables | Notes |
+|---|---|---|
+| Security | `SECRET_KEY` (required, no default) | Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| Database | `DATABASE_URL` | Defaults to local Postgres |
+| Redis | `REDIS_URL`, `REDIS_TTL` | Used for caching, BM25 corpus storage, and the ARQ queue |
+| Qdrant | `QDRANT_URL`, `QDRANT_API_KEY`, `QDRANT_COLLECTION`, `QDRANT_VECTOR_SIZE` | Vector size defaults to 3072 (Gemini embedding dimension) |
+| LLM | `GEMINI_API_KEY` **(required, missing from `.env.example` — add manually)**, `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL` | The only provider actually wired into `llm_service.py` / `Ingestion_service.py` |
+| LLM (configured, unused) | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | Defined in settings but no service currently calls these providers |
+| Reranking | `COHERE_API_KEY`, `COHERE_RERANK_MODEL`, `USE_RERANKER` | Reranking is skipped if no Cohere key is set |
+| File storage | `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`, `MINIO_BUCKET`, `MINIO_SECURE` | |
+| RAG tuning | `CHUNK_SIZE`, `CHUNK_OVERLAP`, `TOP_K_RETRIEVAL`, `TOP_K_RERANK`, `MAX_RERANK_CANDIDATES`, `SIMILARITY_THRESHOLD`, `DENSE_WEIGHT`, `SPARSE_WEIGHT`, `BM25_ENABLED`, `QUERY_REWRITE_ENABLED`, `CONTEXTUAL_ENRICHMENT_ENABLED` | |
+| Defined but not wired up | `SEMANTIC_CACHE_ENABLED`, `SEMANTIC_CACHE_THRESHOLD`, `SEMANTIC_CACHE_TTL` | Present in settings only — no code references them outside `config.py` |
 
-```env
-# Required
-OPENAI_API_KEY=sk-...
+## API Reference
 
-# Optional but recommended
-COHERE_API_KEY=...          # For reranking
+### Chat — `/api/v1/chat`
+| Method & Path | Description |
+|---|---|
+| `POST /query` | Non-streaming chat query. Runs full RAG pipeline, returns answer + sources. |
+| `POST /stream` | SSE streaming query. Emits `{"type":"token","content":...}`, then `{"type":"sources",...}`, then `{"type":"done","conversation_id":...}`, terminated by `data: [DONE]`. |
+| `POST /{conversation_id}/feedback` | Records a 1–5 rating (+ optional comment) on a previous answer. |
 
-# Database URLs (defaults work with docker-compose)
-DATABASE_URL=postgresql://rag_user:rag_password@localhost:5432/rag_db
-REDIS_URL=redis://localhost:6379
-QDRANT_URL=http://localhost:6333
+### Documents — `/api/v1/documents`
+| Method & Path | Description |
+|---|---|
+| `POST /upload` | Uploads a file, stores it in MinIO, enqueues background ingestion. Returns `202` with `status: pending`. |
+| `GET /{document_id}/status` | Poll ingestion progress: `pending → queued → processing → completed/failed`. |
+| `GET /list` | List recent documents (limit 20). |
+| `DELETE /{document_id}` | Deletes the document and its vectors/BM25 entries. |
+| `POST /{document_id}/reingest` | Re-runs ingestion with current settings (e.g. after toggling `CONTEXTUAL_ENRICHMENT_ENABLED`). |
 
-# RAG Settings
-TOP_K_RETRIEVAL=10
-CHUNK_SIZE=1000
-CHUNK_OVERLAP=200
+### Health & Debug
+| Method & Path | Description |
+|---|---|
+| `GET /health` | Checks Qdrant, Redis, and Postgres connectivity. `200` if healthy, `503` if degraded. |
+| `GET /api/v1/debug/status` | Snapshot of Qdrant point count, ARQ pending job count, and the 10 most recent documents. |
+| `GET /api/v1/debug/rag-stats` | Aggregate latency/quality stats over the last 100 pipeline runs. |
+
+### Auth — `/api/v1/auth`
+Routes file exists (`app/api/auth.py`) but is currently empty — no authentication is implemented. `user_id` fields on `Document`/`Conversation` are nullable and unused in practice.
+
+## RAG Pipeline
+
+**Ingestion** (triggered by upload, runs in `app/workers/ingestion_worker.py`):
+```
+Upload → MinIO storage → ARQ job enqueued
+  → Parse (PyMuPDF / python-docx / openpyxl / OCR fallback for scanned PDFs)
+  → Chunk (recursive splitter, configurable size + overlap)
+  → Embed each chunk (Gemini embedding model)
+  → Upsert vectors into Qdrant + store raw text in Redis for BM25
+  → Update document status in Postgres
 ```
 
-### Frontend Environment (`apps/web/.env.local`)
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:8000
+**Query** (`vector_service.py` + `chat_service.py` + `llm_service.py`):
+```
+User message → guardrail checks (prompt injection / harmful content)
+  → load recent conversation history (last 10 messages)
+  → Gemini query rewrite (expands abbreviations, decomposes multi-part questions)
+  → hybrid retrieval: Qdrant dense search + Redis BM25 sparse search
+  → reciprocal rank fusion of both result sets
+  → Cohere rerank top candidates (if enabled)
+  → Gemini generates the answer from the fused context
+  → guardrail-validate the output
+  → stream tokens + sources over SSE, persist messages to Postgres
 ```
 
----
+## Tech Stack
 
-## 💻 Development
+- **Framework**: FastAPI 0.135, Uvicorn, Pydantic v2
+- **Database**: PostgreSQL via SQLAlchemy 2.0 + Alembic
+- **Vector store**: Qdrant (qdrant-client 1.18)
+- **Cache / queue**: Redis 5.3, ARQ 0.28 for async ingestion jobs
+- **Sparse search**: rank-bm25
+- **LLM / embeddings**: Google Gemini (`google-genai`) — actively used; `openai`, `anthropic`, `litellm` are installed dependencies but not called by any service
+- **Reranking**: Cohere (`rerank-english-v3.0`)
+- **Document parsing**: PyMuPDF, pdfplumber, python-docx, openpyxl, pytesseract (OCR fallback)
+- **File storage**: MinIO via boto3 (S3-compatible)
+- **Observability**: prometheus-client, structured JSON logging with request-ID propagation
 
-### Daily Workflow
+## Observability & Eval
 
-```bash
-# Start infrastructure
-pnpm docker:up
+- `GET /metrics` — Prometheus metrics (RAG latency histograms, chunks retrieved, feedback counts)
+- Structured JSON logs with request IDs (`app/core/logging.py`)
+- `GET /health` and `GET /api/v1/debug/*` for live pipeline inspection
+- `app/eval/` — `evaluator.py` runs retrieval/answer quality checks against `golden_set.json`, with results snapshotted in `eval_results.json` / `retrieval_eval_results.json`
 
-# Start dev servers (both frontend & backend)
-pnpm dev
+## Known Gaps
 
-# Or run separately:
-pnpm dev:web     # Frontend only
-pnpm dev:api     # Backend only
+These are real, verified gaps — not a roadmap, just the current state:
 
-# View logs
-pnpm docker:logs
+- **No authentication** — `app/api/auth.py` and `app/services/auth_service.py` are empty stub files.
+- **No automated tests** — there is no `tests/` directory anywhere in the repo.
+- **No Dockerfile / working docker-compose** — `docker-compose.yml` at the repo root is a 0-byte placeholder; there's no containerized way to run the stack yet.
+- **No frontend** — `apps/web/` is an empty directory; the root `package.json` and `pnpm-workspace.yaml` are also empty placeholders.
+- **`.env.example` is incomplete** — it doesn't include `GEMINI_API_KEY`, which is required for the app to actually generate responses or embeddings.
+- **Unused config/dependencies** — `SEMANTIC_CACHE_*` settings exist but aren't referenced anywhere in the code; `langgraph`/`langchain-core`/`langsmith` are installed but unused by any current service.
 
-# Stop everything
-pnpm docker:down
-```
-
-### Adding Features
-
-**Backend changes** (`apps/backend/app/`):
-```python
-# Add new service in services/
-# Add new route in api/
-# Changes hot-reload automatically
-```
-
-**Frontend changes** (`apps/web/`):
-```typescript
-// Add components in components/
-// Add pages in app/
-// Changes hot-reload automatically
-```
-
----
-
-## 🧪 Testing
-
-```bash
-# Backend tests
-cd apps/backend
-pytest tests/ -v --cov
-
-# Frontend tests
-cd apps/web
-pnpm test
-
-# Lint
-pnpm lint
-```
-
----
-
-## 📚 Tech Stack
-
-### Frontend
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **State**: Zustand
-- **HTTP**: Fetch API with SSE
-
-### Backend
-- **Framework**: FastAPI
-- **Language**: Python 3.11+
-- **Async**: asyncio + uvicorn
-- **Validation**: Pydantic v2
-- **ORM**: SQLAlchemy
-
-### AI/ML
-- **LLM**: OpenAI GPT-4 / Claude
-- **Embeddings**: text-embedding-3-large
-- **Vector DB**: Qdrant
-- **Cache**: Redis
-- **Reranking**: Cohere (optional)
-
-### Infrastructure
-- **Containers**: Docker + Docker Compose
-- **Database**: PostgreSQL + pgvector
-- **Cache**: Redis
-- **Vector Store**: Qdrant
-
----
-
-## 🎯 Core Features
-
-### RAG Pipeline
-
-```python
-# apps/backend/app/services/rag.py
-
-1. Document Upload
-   → Parse (PDF, DOCX, TXT)
-   → Chunk (recursive + semantic)
-   → Embed (OpenAI)
-   → Store (Qdrant)
-
-2. Query Processing
-   → Preprocess query
-   → Hybrid retrieval (vector + keyword)
-   → Rerank top results
-   → Generate with LLM
-   → Stream response
-
-3. Response
-   → Streaming tokens
-   → Source citations
-   → Conversation memory
-```
-
-### Advanced Retrieval
-
-```python
-# Hybrid Search
-dense_results = await vector_search(query)  # Semantic
-sparse_results = await keyword_search(query) # BM25
-fused = reciprocal_rank_fusion([dense, sparse])
-
-# Reranking
-reranked = await reranker.rerank(query, fused, top_k=5)
-```
-
-### Streaming Chat
-
-```typescript
-// apps/web/lib/api.ts
-
-// Server-Sent Events (SSE)
-const stream = await fetch('/api/chat/stream', {
-  method: 'POST',
-  body: JSON.stringify({ message })
-});
-
-// Parse SSE and update UI token-by-token
-for await (const chunk of stream) {
-  updateMessage(chunk);
-}
-```
-
----
-
-## 🗺️ Roadmap
-
-### ✅ Week 1-2: MVP (CURRENT)
-- [x] Monorepo setup
-- [x] Docker infrastructure
-- [x] Basic RAG pipeline
-- [ ] Document upload
-- [ ] Vector storage
-- [ ] Simple chat interface
-
-### 🔄 Week 3-4: Advanced Retrieval
-- [ ] Hybrid search (dense + sparse)
-- [ ] Reranking with Cohere
-- [ ] Semantic caching
-- [ ] Query enhancement
-- [ ] Citation generation
-
-### 📋 Week 5-6: Polish
-- [ ] Streaming UI
-- [ ] Conversation history
-- [ ] Source panel
-- [ ] Error handling
-- [ ] Performance optimization
-
-### 🚀 Week 7+: Advanced Features
-- [ ] Agentic RAG
-- [ ] Query decomposition
-- [ ] GraphRAG
-- [ ] Evaluation framework
-- [ ] Monitoring
-
----
-
-## 🎓 Learning Path
-
-### Start Here
-1. `apps/backend/app/main.py` - Entry point
-2. `apps/backend/app/services/rag.py` - Core logic
-3. `apps/web/app/page.tsx` - Chat UI
-4. `apps/web/lib/api.ts` - API client
-
-### Key Concepts
-- **Embeddings**: Convert text to vectors
-- **Semantic Search**: Find similar vectors
-- **Chunking**: Split documents intelligently
-- **Reranking**: Improve retrieval precision
-- **Streaming**: Real-time response delivery
-
-### Resources
-- [RAG Paper](https://arxiv.org/abs/2005.11401)
-- [FastAPI Docs](https://fastapi.tiangolo.com/)
-- [Next.js Docs](https://nextjs.org/docs)
-- [Qdrant Docs](https://qdrant.tech/documentation/)
-
----
-
-## 🐛 Troubleshooting
-
-### Docker containers won't start
-```bash
-# Check ports
-lsof -i :5432 :6333 :6379
-
-# Restart
-pnpm docker:down
-docker system prune -f
-pnpm docker:up
-```
-
-### Backend won't connect to databases
-```bash
-# Verify services
-docker-compose ps
-
-# Check logs
-docker-compose logs postgres
-docker-compose logs qdrant
-docker-compose logs redis
-```
-
-### Frontend shows CORS error
-```bash
-# Check CORS_ORIGINS in apps/backend/app/core/config.py
-# Should include: http://localhost:3000
-```
-
----
-
-## 📊 Performance Targets
-
-| Metric | Target |
-|--------|--------|
-| Query Latency (p95) | <2s |
-| Cache Hit Rate | >60% |
-| Retrieval Recall@5 | >85% |
-| Cost per Query | <$0.05 |
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repo
-2. Create feature branch
-3. Make changes
-4. Add tests
-5. Submit PR
+2. Create a feature branch
+3. Make your changes
+4. Open a PR describing what changed and why
 
----
+## License
 
-## 📄 License
-
-MIT License - see LICENSE file
-
----
-
-## 🙏 Acknowledgments
-
-Built with:
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Next.js](https://nextjs.org/)
-- [Qdrant](https://qdrant.tech/)
-- [OpenAI](https://openai.com/)
-
----
-
-## 📧 Contact
-
-**Your Name** - [your.email@example.com]
-
-Portfolio: https://yourportfolio.com
-GitHub: https://github.com/yourusername
-LinkedIn: https://linkedin.com/in/yourprofile
-
----
-
-**⭐ Star this repo if it helps you!**
-
-Built with 💜 for learning advanced RAG systems
+No `LICENSE` file is currently committed to this repo.

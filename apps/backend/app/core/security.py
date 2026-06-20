@@ -1,4 +1,9 @@
 
+import secrets
+import hashlib
+import time
+import secrets
+
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -6,9 +11,6 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from jose import jwt, JWTError
 from fastapi import status, Security,HTTPException
-import secrets
-import hashlib
-import time
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -77,7 +79,35 @@ class SecurityUtils:
         encode_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         return encode_jwt
 
+    @staticmethod
+    def create_signup_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+        """
+        Create a JWT Temp token
+        
+        Args:
+            data: Data to encode in token
+            expires_delta: Token expiration time
+            
+        Returns:
+            Encoded JWT token
+        """
 
+        to_encode = data.copy()
+
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=1)
+
+        to_encode.update({
+            "exp": expire,
+            "iat": datetime.utcnow(),
+            "type": "access"
+        })
+
+        encode_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return encode_jwt
+    
     @staticmethod
     def create_refresh_token(data: Dict[str, Any]) -> str:
         """
@@ -156,7 +186,18 @@ class SecurityUtils:
         """
         return hashlib.sha256(api_key.encode()).hexdigest()
     
-
+    @staticmethod
+    def generate_numeric_otp() -> int:
+        """
+        Generate a numeric otp
+            
+        Returns:
+            Random otp
+        """
+        length = 6
+        digits = "0123456789"
+        return "".join(secrets.choice(digits) for _ in range(length))
+    
 # Dependency for protected routes
 async def get_current_user(credentials:HTTPAuthorizationCredentials = Security(security)) -> Dict[str,Any]:
     """
